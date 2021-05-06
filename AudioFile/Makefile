@@ -1,11 +1,14 @@
 objects :=examples.o
 
+CC=gcc
+CXX=g++
+LD=g++
 
 first_try: $(objects) 
-	g++ -o first_try $(objects) 
+	$(CXX) -o first_try $(objects) 
 
 examples.o: examples.cpp AudioFile.h
-	g++ -c examples.cpp
+	$(CXX) -c examples.cpp
 
 
 .PHONY : clean

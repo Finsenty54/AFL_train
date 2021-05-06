@@ -12,20 +12,23 @@ namespace examples
 } // namespace examples
 
 //=======================================================================
-int main(int argc,char **argv)
+int main(int argc, char **argv)
 {
     //---------------------------------------------------------------
     /** Writes a sine wave to an audio file */
     //examples::writeSineWaveToAudioFile();
 
-    //---------------------------------------------------------------
-    /** Loads an audio file and prints key details to the console*/
-    examples::loadAudioFileAndPrintSummary(argv[1]);
+    //进行AFL Persistent mode
+    while (__AFL_LOOP(10000))
+    {
+        //---------------------------------------------------------------
+        /** Loads an audio file and prints key details to the console*/
+        examples::loadAudioFileAndPrintSummary(argv[1]);
 
-    //---------------------------------------------------------------
-    /** Loads an audio file and processess the samples */
-    examples::loadAudioFileAndProcessSamples(argv[1]);
-
+        //---------------------------------------------------------------
+        /** Loads an audio file and processess the samples */
+        examples::loadAudioFileAndProcessSamples(argv[1]);
+    }
     return 0;
 }
 
