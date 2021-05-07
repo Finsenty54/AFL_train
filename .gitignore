@@ -1,3 +1,7 @@
+/AudioFile/core
 /AudioFile/out
+/AudioFile/in
 /AudioFile/in_cmin
 /AudioFile/in_tmin
+
+/AudioFile/crash_tmin
