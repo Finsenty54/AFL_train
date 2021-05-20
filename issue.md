@@ -1,74 +1,226 @@
-Describe
-A heap-buffer-overflow was discovered in ok_file_formats. The issue is being triggered in function ok_jpg_decode_block_subsequent_scan() at ok_jpg.c:1102
+##Describe
+Two heap-buffer-overflow were discovered in AudioFile. First one is being triggered in function decodeWaveFile() at AudioFile.h:502
 
-Reproduce
+##Reproduce
 test program
 
-#include <stdio.h>
-#include <stdlib.h>
-#include "ok_mo.h"
-#include "ok_jpg.h"
-int main(int _argc, char **_argv) {
-    FILE *file = fopen(_argv[1], "rb");
-    ok_jpg image = ok_jpg_read(file, OK_JPG_COLOR_FORMAT_RGBA);
-    fclose(file);
-    if (image.data) {
-        printf("Got image! Size: %li x %li\n", (long)image.width, (long)image.height);
-        free(image.data);
+<details>
+    
+#include <iostream>
+#define _USE_MATH_DEFINES
+#include <cmath>
+#include "AudioFile.h"
+
+//=======================================================================
+namespace examples
+{
+    void writeSineWaveToAudioFile();
+    void loadAudioFileAndPrintSummary(char *);
+    void loadAudioFileAndProcessSamples(char *);
+} // namespace examples
+
+//=======================================================================
+int main(int argc, char **argv)
+{
+    //---------------------------------------------------------------
+    /** Writes a sine wave to an audio file */
+    //examples::writeSineWaveToAudioFile();
+
+    //__AFL_LOOP() used in AFL Persistent mode, if u don't use AFL compile, just comment 
+    while (__AFL_LOOP(10000))
+    {
+        //---------------------------------------------------------------
+        /** Loads an audio file and prints key details to the console*/
+        examples::loadAudioFileAndPrintSummary(argv[1]);
+
+        //---------------------------------------------------------------
+        /** Loads an audio file and processess the samples */
+        examples::loadAudioFileAndProcessSamples(argv[1]);
     }
     return 0;
 }
-Tested in Ubuntu 18.04, 64bit.
+
+//=======================================================================
+namespace examples
+{
+    //=======================================================================
+    void writeSineWaveToAudioFile()
+    {
+        //---------------------------------------------------------------
+        std::cout << "**********************" << std::endl;
+        std::cout << "Running Example: Write Sine Wave To Audio File" << std::endl;
+        std::cout << "**********************" << std::endl
+                  << std::endl;
+
+        //---------------------------------------------------------------
+        // 1. Let's setup our AudioFile instance
+
+        AudioFile<float> a;
+        a.setNumChannels(2);
+        a.setNumSamplesPerChannel(44100);
+
+        //---------------------------------------------------------------
+        // 2. Create some variables to help us generate a sine wave
+
+        const float sampleRate = 44100.f;
+        const float frequencyInHz = 440.f;
+
+        //---------------------------------------------------------------
+        // 3. Write the samples to the AudioFile sample buffer
+
+        for (int i = 0; i < a.getNumSamplesPerChannel(); i++)
+        {
+            for (int channel = 0; channel < a.getNumChannels(); channel++)
+            {
+                a.samples[channel][i] = sin((static_cast<float>(i) / sampleRate) * frequencyInHz * 2.f * M_PI);
+            }
+        }
+
+        //---------------------------------------------------------------
+        // 4. Save the AudioFile
+
+        std::string filePath = "sine-wave.wav"; // change this to somewhere useful for you
+        a.save("sine-wave.wav", AudioFileFormat::Wave);
+    }
+
+    //=======================================================================
+    void loadAudioFileAndPrintSummary(char *file)
+    {
+        //---------------------------------------------------------------
+        std::cout << "**********************" << std::endl;
+        std::cout << "Running Example: Load Audio File and Print Summary" << std::endl;
+        std::cout << "**********************" << std::endl
+                  << std::endl;
+
+        //---------------------------------------------------------------
+        // 1. Set a file path to an audio file on your machine
+        const std::string filePath = std::string(file);
+
+        //---------------------------------------------------------------
+        // 2. Create an AudioFile object and load the audio file
+
+        AudioFile<float> a;
+        bool loadedOK = a.load(filePath);
+
+        /** If you hit this assert then the file path above
+         probably doesn't refer to a valid audio file */
+        assert(loadedOK);
+
+        //---------------------------------------------------------------
+        // 3. Let's print out some key details
+
+        std::cout << "Bit Depth: " << a.getBitDepth() << std::endl;
+        std::cout << "Sample Rate: " << a.getSampleRate() << std::endl;
+        std::cout << "Num Channels: " << a.getNumChannels() << std::endl;
+        std::cout << "Length in Seconds: " << a.getLengthInSeconds() << std::endl;
+        std::cout << std::endl;
+    }
+
+    //=======================================================================
+    void loadAudioFileAndProcessSamples(char *file)
+    {
+        //---------------------------------------------------------------
+        std::cout << "**********************" << std::endl;
+        std::cout << "Running Example: Load Audio File and Process Samples" << std::endl;
+        std::cout << "**********************" << std::endl
+                  << std::endl;
+
+        //---------------------------------------------------------------
+        // 1. Set a file path to an audio file on your machine
+        const std::string inputFilePath = std::string(file);
+
+        //---------------------------------------------------------------
+        // 2. Create an AudioFile object and load the audio file
+
+        AudioFile<float> a;
+        bool loadedOK = a.load(inputFilePath);
+
+        /** If you hit this assert then the file path above
+         probably doesn't refer to a valid audio file */
+        assert(loadedOK);
+
+        //---------------------------------------------------------------
+        // 3. Let's apply a gain to every audio sample
+
+        float gain = 0.5f;
+
+        for (int i = 0; i < a.getNumSamplesPerChannel(); i++)
+        {
+            for (int channel = 0; channel < a.getNumChannels(); channel++)
+            {
+                a.samples[channel][i] = a.samples[channel][i] * gain;
+            }
+        }
+
+        //---------------------------------------------------------------
+        // 4. Write audio file to disk
+
+        //std::string outputFilePath = "quieter-audio-filer.wav"; // change this to somewhere useful for you
+        //a.save(outputFilePath, AudioFileFormat::Aiff);
+    }
+} // namespace examples
+    
+    </details>
+Tested in parrot 4.9, 64bit.
 Compile test program with address sanitizer with this command:
 
-gcc -g -fsanitize=address -fno-omit-frame-pointer -O1 -o Asanjpg main.c ok_jpg.c  ok_jpg.h
+g++ -g -fsanitize=address -o asantry examples.cpp AudioFile.h 
 You can get program here.
 
-ASan Reports
-./Asanjpg crash/jpg-heap-buffer-overflow-1
+##ASan Reports
+### The first one
+
+./asantry ./out/default/crashes/id\:000005\,sig\:06\,src\:000006\,time\:84641\,op\:havoc\,rep\:2 
 Get ASan reports
 
-==98287==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x631000039680 at pc 0x562394639b54 bp 0x7ffee24654e0 sp 0x7ffee24654d0
-READ of size 2 at 0x631000039680 thread T0
-    #0 0x562394639b53 in ok_jpg_decode_block_subsequent_scan /root/study/ok-file-formats/afl-test/ok_jpg.c:1102
-    #1 0x56239463b11f in ok_jpg_decode_scan /root/study/ok-file-formats/afl-test/ok_jpg.c:1238
-    #2 0x56239463fc60 in ok_jpg_read_sos /root/study/ok-file-formats/afl-test/ok_jpg.c:1734
-    #3 0x562394640d3c in ok_jpg_decode2 /root/study/ok-file-formats/afl-test/ok_jpg.c:1900
-    #4 0x562394641605 in ok_jpg_decode /root/study/ok-file-formats/afl-test/ok_jpg.c:1990
-    #5 0x5623946308a4 in ok_jpg_read_with_allocator /root/study/ok-file-formats/afl-test/ok_jpg.c:268
-    #6 0x56239463071b in ok_jpg_read /root/study/ok-file-formats/afl-test/ok_jpg.c:257
-    #7 0x56239462fd5e in main /root/study/ok-file-formats/afl-test/main.c:8
-    #8 0x7fe63f9a4b96 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x21b96)
-    #9 0x56239462fb29 in _start (/root/study/ok-file-formats/afl-test/Asanjpg/Asanjpg+0x2b29)
+**********************
+Running Example: Load Audio File and Print Summary
+**********************
 
-0x631000039680 is located 113 bytes to the right of 69135-byte region [0x631000028800,0x63100003960f)
+=================================================================
+==23==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x602000000738 at pc 0x55da0cb245e9 bp 0x7ffc6e244e90 sp 0x7ffc6e244e80
+READ of size 1 at 0x602000000738 thread T0
+    #0 0x55da0cb245e8 in void std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_S_copy_chars<__gnu_cxx::__normal_iterator<unsigned char*, std::vector<unsigned char, std::allocator<unsigned char> > > >(char*, __gnu_cxx::__normal_iterator<unsigned char*, std::vector<unsigned char, std::allocator<unsigned char> > >, __gnu_cxx::__normal_iterator<unsigned char*, std::vector<unsigned char, std::allocator<unsigned char> > >) /usr/include/c++/10/bits/basic_string.h:379
+    #1 0x55da0cb226a7 in void std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_construct<__gnu_cxx::__normal_iterator<unsigned char*, std::vector<unsigned char, std::allocator<unsigned char> > > >(__gnu_cxx::__normal_iterator<unsigned char*, std::vector<unsigned char, std::allocator<unsigned char> > >, __gnu_cxx::__normal_iterator<unsigned char*, std::vector<unsigned char, std::allocator<unsigned char> > >, std::forward_iterator_tag) /usr/include/c++/10/bits/basic_string.tcc:225
+    #2 0x55da0cb1fba7 in void std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_construct_aux<__gnu_cxx::__normal_iterator<unsigned char*, std::vector<unsigned char, std::allocator<unsigned char> > > >(__gnu_cxx::__normal_iterator<unsigned char*, std::vector<unsigned char, std::allocator<unsigned char> > >, __gnu_cxx::__normal_iterator<unsigned char*, std::vector<unsigned char, std::allocator<unsigned char> > >, std::__false_type) /usr/include/c++/10/bits/basic_string.h:247
+    #3 0x55da0cb1cfd5 in void std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_construct<__gnu_cxx::__normal_iterator<unsigned char*, std::vector<unsigned char, std::allocator<unsigned char> > > >(__gnu_cxx::__normal_iterator<unsigned char*, std::vector<unsigned char, std::allocator<unsigned char> > >, __gnu_cxx::__normal_iterator<unsigned char*, std::vector<unsigned char, std::allocator<unsigned char> > >) /usr/include/c++/10/bits/basic_string.h:266
+    #4 0x55da0cb19e45 in std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string<__gnu_cxx::__normal_iterator<unsigned char*, std::vector<unsigned char, std::allocator<unsigned char> > >, void>(__gnu_cxx::__normal_iterator<unsigned char*, std::vector<unsigned char, std::allocator<unsigned char> > >, __gnu_cxx::__normal_iterator<unsigned char*, std::vector<unsigned char, std::allocator<unsigned char> > >, std::allocator<char> const&) /usr/include/c++/10/bits/basic_string.h:628
+    #5 0x55da0cb11fcd in AudioFile<float>::decodeWaveFile(std::vector<unsigned char, std::allocator<unsigned char> >&) /src/AudioFile.h:502
+    #6 0x55da0cb0d359 in AudioFile<float>::load(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) /src/AudioFile.h:481
+    #7 0x55da0cb0554d in examples::loadAudioFileAndPrintSummary(char*) /src/examples.cpp:95
+    #8 0x55da0cb04d0e in main /src/examples.cpp:26
+    #9 0x7fede8fdb0b2 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x270b2)
+    #10 0x55da0cb04c0d in _start (/src/asantry+0x4c0d)
+
+0x602000000738 is located 2 bytes to the right of 6-byte region [0x602000000730,0x602000000736)
 allocated by thread T0 here:
-    #0 0x7fe63fe52b40 in __interceptor_malloc (/usr/lib/x86_64-linux-gnu/libasan.so.4+0xdeb40)
-    #1 0x56239462ff00 in ok_stdlib_alloc /root/study/ok-file-formats/afl-test/ok_jpg.c:55
-    #2 0x56239463eb20 in ok_jpg_read_sof /root/study/ok-file-formats/afl-test/ok_jpg.c:1595
-    #3 0x562394640ac2 in ok_jpg_decode2 /root/study/ok-file-formats/afl-test/ok_jpg.c:1884
-    #4 0x562394641605 in ok_jpg_decode /root/study/ok-file-formats/afl-test/ok_jpg.c:1990
-    #5 0x5623946308a4 in ok_jpg_read_with_allocator /root/study/ok-file-formats/afl-test/ok_jpg.c:268
-    #6 0x56239463071b in ok_jpg_read /root/study/ok-file-formats/afl-test/ok_jpg.c:257
-    #7 0x56239462fd5e in main /root/study/ok-file-formats/afl-test/main.c:8
-    #8 0x7fe63f9a4b96 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x21b96)
+    #0 0x7fede95a2f17 in operator new(unsigned long) (/lib/x86_64-linux-gnu/libasan.so.6+0xb1f17)
+    #1 0x55da0cb1da08 in __gnu_cxx::new_allocator<unsigned char>::allocate(unsigned long, void const*) /usr/include/c++/10/ext/new_allocator.h:115
+    #2 0x55da0cb1ac79 in std::allocator_traits<std::allocator<unsigned char> >::allocate(std::allocator<unsigned char>&, unsigned long) /usr/include/c++/10/bits/alloc_traits.h:460
+    #3 0x55da0cb16819 in std::_Vector_base<unsigned char, std::allocator<unsigned char> >::_M_allocate(unsigned long) /usr/include/c++/10/bits/stl_vector.h:346
+    #4 0x55da0cb195b6 in std::vector<unsigned char, std::allocator<unsigned char> >::_M_default_append(unsigned long) /usr/include/c++/10/bits/vector.tcc:635
+    #5 0x55da0cb11896 in std::vector<unsigned char, std::allocator<unsigned char> >::resize(unsigned long) /usr/include/c++/10/bits/stl_vector.h:940
+    #6 0x55da0cb0d192 in AudioFile<float>::load(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) /src/AudioFile.h:465
+    #7 0x55da0cb0554d in examples::loadAudioFileAndPrintSummary(char*) /src/examples.cpp:95
+    #8 0x55da0cb04d0e in main /src/examples.cpp:26
+    #9 0x7fede8fdb0b2 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x270b2)
 
-SUMMARY: AddressSanitizer: heap-buffer-overflow /root/study/ok-file-formats/afl-test/ok_jpg.c:1102 in ok_jpg_decode_block_subsequent_scan
+SUMMARY: AddressSanitizer: heap-buffer-overflow /usr/include/c++/10/bits/basic_string.h:379 in void std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_S_copy_chars<__gnu_cxx::__normal_iterator<unsigned char*, std::vector<unsigned char, std::allocator<unsigned char> > > >(char*, __gnu_cxx::__normal_iterator<unsigned char*, std::vector<unsigned char, std::allocator<unsigned char> > >, __gnu_cxx::__normal_iterator<unsigned char*, std::vector<unsigned char, std::allocator<unsigned char> > >)
 Shadow bytes around the buggy address:
-  0x0c627ffff280: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-  0x0c627ffff290: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-  0x0c627ffff2a0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-  0x0c627ffff2b0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-  0x0c627ffff2c0: 00 07 fa fa fa fa fa fa fa fa fa fa fa fa fa fa
-=>0x0c627ffff2d0:[fa]fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
-  0x0c627ffff2e0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
-  0x0c627ffff2f0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
-  0x0c627ffff300: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
-  0x0c627ffff310: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
-  0x0c627ffff320: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x0c047fff8090: fa fa fd fd fa fa fd fd fa fa 00 02 fa fa 00 02
+  0x0c047fff80a0: fa fa 00 02 fa fa 00 02 fa fa 00 02 fa fa 00 02
+  0x0c047fff80b0: fa fa 00 02 fa fa 00 02 fa fa 00 02 fa fa 00 02
+  0x0c047fff80c0: fa fa 00 02 fa fa 00 02 fa fa 00 02 fa fa 00 02
+  0x0c047fff80d0: fa fa 00 02 fa fa 00 02 fa fa 00 02 fa fa 00 02
+=>0x0c047fff80e0: fa fa 00 02 fa fa 06[fa]fa fa fa fa fa fa fa fa
+  0x0c047fff80f0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x0c047fff8100: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x0c047fff8110: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x0c047fff8120: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x0c047fff8130: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
 Shadow byte legend (one shadow byte represents 8 application bytes):
   Addressable:           00
-  Partially addressable: 01 02 03 04 05 06 07
+  Partially addressable: 01 02 03 04 05 06 07 
   Heap left redzone:       fa
   Freed heap region:       fd
   Stack left redzone:      f1
@@ -85,7 +237,10 @@ Shadow byte legend (one shadow byte represents 8 application bytes):
   ASan internal:           fe
   Left alloca redzone:     ca
   Right alloca redzone:    cb
-==98287==ABORTING
+  Shadow gap:              cc
+==23==ABORTING
+
+
 Poc
 Poc file is here.
 
