@@ -1,5 +1,5 @@
 ## Describe
-Two heap-buffer-overflow were discovered in AudioFile. The first one is being triggered in function decodeWaveFile() at AudioFile.h:502, the second one is being triggered in function determineAudioFileFormat() at AudioFile.h:1148.
+Two heap-buffer-overflow were discovered in AudioFile. The first one is being triggered in function decodeWaveFile() at AudioFile.h:502, and the second one is being triggered in function determineAudioFileFormat() at AudioFile.h:1148.
 
 ## Reproduce
 test program
