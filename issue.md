@@ -166,7 +166,7 @@ just little change in examples.cpp
 Tested in parrot 4.9, 64bit.
 Compile test program with address sanitizer with this command:
 
-g++ -g -fsanitize=address -o asantry examples.cpp AudioFile.h 
+`g++ -g -fsanitize=address -o asantry examples.cpp AudioFile.h `
 You can get program [here](https://github.com/Finsenty54/AFL_train/blob/main/AudioFile/asantry "here").
 
 ## ASan Reports
@@ -327,5 +327,5 @@ Poc file is [here](https://github.com/Finsenty54/AFL_train/blob/main/AudioFile/o
     
 ## Fuzzer & Testcase
 Fuzzer is AFLplusplus.
-Testcase is in [here](https://github.com/Finsenty54/AFL_train/tree/main/AudioFile/in "here").
+Testcase is in [here](https://github.com/Finsenty54/AFL_train/tree/main/AudioFile/in_cmin "here").
 I use your testcase in file tests/test-audio/ and I choose .wav files. Then I use afl-cmin to minisize these files.
